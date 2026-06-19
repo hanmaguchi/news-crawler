@@ -2,11 +2,13 @@ import html
 import re
 from datetime import date, timedelta
 
+import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
 from crawler.dedup import dedup
 from crawler.export import to_excel
+from crawler.sentiment import classify
 from crawler.sources import GoogleNewsSource, NaverNewsSource, RssSource
 
 load_dotenv()
@@ -35,6 +37,13 @@ def _highlight(text: str, keywords: list[str]) -> str:
     return escaped
 
 
+_SENTIMENT_STYLE = {
+    "긍정": "background:#c6efce;border-radius:4px;padding:1px 6px",
+    "부정": "background:#ffc7ce;border-radius:4px;padding:1px 6px",
+    "중립": "color:#888",
+}
+
+
 def _render_table(articles, keywords: list[str]) -> str:
     rows = []
     for a in articles:
@@ -44,12 +53,15 @@ def _render_table(articles, keywords: list[str]) -> str:
             if a.url
             else ""
         )
+        sentiment = classify(a.title)
+        style = _SENTIMENT_STYLE.get(sentiment, "")
         rows.append(
             f"<tr>"
             f"<td>{_highlight(a.title, keywords)}</td>"
             f"<td>{html.escape(a.press)}</td>"
             f"<td style='white-space:nowrap'>{date_str}</td>"
             f"<td>{html.escape(a.source)}</td>"
+            f"<td><span style='{style}'>{sentiment}</span></td>"
             f"<td>{link}</td>"
             f"</tr>"
         )
@@ -67,7 +79,7 @@ def _render_table(articles, keywords: list[str]) -> str:
 </style>
 <table class="news-table">
 <thead><tr>
-  <th>제목</th><th>언론사</th><th>배포일자</th><th>출처</th><th>링크</th>
+  <th>제목</th><th>언론사</th><th>배포일자</th><th>출처</th><th>감성</th><th>링크</th>
 </tr></thead>
 <tbody>{"".join(rows)}</tbody>
 </table>"""
@@ -173,7 +185,28 @@ keywords_used = st.session_state.get("keywords_used", [])
 if articles:
     st.success(f"총 {len(articles)}건 (중복 제거 후)")
 
-    # 언론사 필터
+    # ── 트렌드 차트 ───────────────────────────────────────────
+    with st.expander("📈 날짜별 기사 수 트렌드", expanded=True):
+        date_series = pd.Series(
+            [a.pub_date.date() for a in articles if a.pub_date],
+            name="기사 수",
+        )
+        if not date_series.empty:
+            chart_df = date_series.value_counts().rename_axis("날짜").sort_index().reset_index()
+            chart_df["날짜"] = chart_df["날짜"].astype(str)
+            st.bar_chart(chart_df, x="날짜", y="기사 수", use_container_width=True)
+
+    # ── 감성 요약 ──────────────────────────────────────────────
+    sentiments = [classify(a.title) for a in articles]
+    pos_n = sentiments.count("긍정")
+    neg_n = sentiments.count("부정")
+    neu_n = sentiments.count("중립")
+    sc1, sc2, sc3 = st.columns(3)
+    sc1.metric("긍정 🟢", pos_n)
+    sc2.metric("부정 🔴", neg_n)
+    sc3.metric("중립 ⚪", neu_n)
+
+    # ── 언론사 필터 ────────────────────────────────────────────
     all_press = sorted({a.press for a in articles})
     selected_press = st.multiselect(
         "언론사 필터",
@@ -185,10 +218,10 @@ if articles:
     if selected_press:
         st.caption(f"필터 적용 후 {len(filtered)}건 표시")
 
-    # 하이라이트 테이블
+    # ── 하이라이트 테이블 ──────────────────────────────────────
     st.markdown(_render_table(filtered, keywords_used), unsafe_allow_html=True)
 
-    # 엑셀 다운로드 (필터 적용된 결과)
+    # ── 엑셀 다운로드 (필터 적용된 결과) ──────────────────────
     fname_kw = "_".join(keywords_used)
     st.download_button(
         "📥 엑셀 다운로드",
