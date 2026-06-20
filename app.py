@@ -7,7 +7,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from crawler.dedup import dedup
-from crawler.export import to_excel
+from crawler.export import to_csv, to_excel, to_json
 from crawler.sentiment import classify
 from crawler.sources import GoogleNewsSource, NaverNewsSource, RssSource
 
@@ -17,12 +17,14 @@ st.set_page_config(page_title="뉴스 크롤러", page_icon="📰", layout="wide
 st.title("📰 뉴스기사 크롤러")
 
 # ── 세션 초기화 ────────────────────────────────────────────────────────────────
-if "custom_sources" not in st.session_state:
-    st.session_state.custom_sources = []
-if "search_history" not in st.session_state:
-    st.session_state.search_history = []
-if "keyword_input" not in st.session_state:
-    st.session_state.keyword_input = ""
+for _key, _default in [
+    ("custom_sources", []),
+    ("search_history", []),
+    ("keyword_input", ""),
+    ("press_blacklist", set()),
+]:
+    if _key not in st.session_state:
+        st.session_state[_key] = _default
 
 naver = NaverNewsSource()
 
@@ -44,16 +46,15 @@ _SENTIMENT_STYLE = {
 }
 
 
-def _render_table(articles, keywords: list[str]) -> str:
+def _render_table(articles, keywords: list[str], sent_map: dict[str, str]) -> str:
     rows = []
     for idx, a in enumerate(articles, start=1):
         date_str = a.pub_date.strftime("%Y-%m-%d %H:%M") if a.pub_date else ""
         link = (
             f'<a href="{html.escape(a.url)}" target="_blank">기사보기</a>'
-            if a.url
-            else ""
+            if a.url else ""
         )
-        sentiment = classify(a.title)
+        sentiment = sent_map.get(a.url, "중립")
         style = _SENTIMENT_STYLE.get(sentiment, "")
         rows.append(
             f"<tr>"
@@ -139,6 +140,25 @@ with st.expander("➕ 커스텀 RSS 소스 추가"):
             st.session_state.custom_sources.pop(i)
             st.rerun()
 
+# ── 언론사 블랙리스트 ──────────────────────────────────────────────────────────
+with st.expander("🚫 언론사 블랙리스트"):
+    bl = st.session_state.press_blacklist
+    bl_input = st.text_input("언론사명 직접 입력 후 Enter", key="bl_manual")
+    if bl_input:
+        bl.add(bl_input.strip())
+        st.session_state.bl_manual = ""
+        st.rerun()
+    if bl:
+        st.caption(f"블랙리스트 {len(bl)}개 — 검색 결과에서 자동 제외됩니다.")
+        for press in sorted(bl):
+            bc1, bc2 = st.columns([5, 1])
+            bc1.write(press)
+            if bc2.button("해제", key=f"bl_rm_{press}"):
+                bl.discard(press)
+                st.rerun()
+    else:
+        st.caption("블랙리스트가 비어 있습니다.")
+
 # ── 검색 실행 ──────────────────────────────────────────────────────────────────
 if st.button("🔍 검색", type="primary"):
     if not keywords:
@@ -158,14 +178,12 @@ if st.button("🔍 검색", type="primary"):
         st.warning("최소 하나의 출처를 선택하세요.")
         st.stop()
 
-    # 히스토리 업데이트 (최대 10개, 중복 제거 후 최신순)
     for kw in reversed(keywords):
         if kw in st.session_state.search_history:
             st.session_state.search_history.remove(kw)
         st.session_state.search_history.insert(0, kw)
     st.session_state.search_history = st.session_state.search_history[:10]
 
-    # 키워드별 × 소스별 수집
     collected = []
     for kw in keywords:
         for src in sources:
@@ -175,26 +193,34 @@ if st.button("🔍 검색", type="primary"):
             except Exception as e:  # noqa: BLE001
                 st.warning(f"[{kw}] {src.name} 수집 실패: {e}")
 
-    articles = sorted(dedup(collected), key=lambda a: a.pub_date, reverse=True)
-    st.session_state.articles = articles
+    articles_all = sorted(dedup(collected), key=lambda a: a.pub_date, reverse=True)
+    st.session_state.articles = articles_all
     st.session_state.keywords_used = keywords
 
 # ── 결과 표시 ──────────────────────────────────────────────────────────────────
-articles = st.session_state.get("articles", [])
+articles_all = st.session_state.get("articles", [])
 keywords_used = st.session_state.get("keywords_used", [])
 
-if articles:
-    st.success(f"총 {len(articles)}건 (중복 제거 후)")
+if articles_all:
+    bl = st.session_state.press_blacklist
+    articles = [a for a in articles_all if a.press not in bl]
+    hidden = len(articles_all) - len(articles)
+
+    msg = f"총 {len(articles_all)}건 (중복 제거 후)"
+    if hidden:
+        msg += f" — 블랙리스트 {hidden}건 제외"
+    st.success(msg)
+
+    # 감성 1회 계산 (테이블·요약 공유)
+    with st.spinner("감성 분석 중…"):
+        sent_map = {a.url: classify(a.title) for a in articles}
 
     # ── 감성 요약 ──────────────────────────────────────────────
-    sentiments = [classify(a.title) for a in articles]
-    pos_n = sentiments.count("긍정")
-    neg_n = sentiments.count("부정")
-    neu_n = sentiments.count("중립")
+    vals = list(sent_map.values())
     sc1, sc2, sc3 = st.columns(3)
-    sc1.metric("긍정 🟢", pos_n)
-    sc2.metric("부정 🔴", neg_n)
-    sc3.metric("중립 ⚪", neu_n)
+    sc1.metric("긍정 🟢", vals.count("긍정"))
+    sc2.metric("부정 🔴", vals.count("부정"))
+    sc3.metric("중립 ⚪", vals.count("중립"))
 
     # ── 언론사 필터 ────────────────────────────────────────────
     all_press = sorted({a.press for a in articles})
@@ -208,17 +234,31 @@ if articles:
     if selected_press:
         st.caption(f"필터 적용 후 {len(filtered)}건 표시")
 
-    # ── 엑셀 다운로드 (필터 적용된 결과) ──────────────────────
+    # ── 내보내기 버튼 ──────────────────────────────────────────
     fname_kw = "_".join(keywords_used)
-    st.download_button(
+    fname_base = f"news_{fname_kw}_{start_d}_{end_d}"
+    dl1, dl2, dl3 = st.columns(3)
+    dl1.download_button(
         "📥 엑셀 다운로드",
         data=to_excel(filtered),
-        file_name=f"news_{fname_kw}_{start_d}_{end_d}.xlsx",
+        file_name=f"{fname_base}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    dl2.download_button(
+        "📄 CSV 다운로드",
+        data=to_csv(filtered),
+        file_name=f"{fname_base}.csv",
+        mime="text/csv",
+    )
+    dl3.download_button(
+        "📋 JSON 다운로드",
+        data=to_json(filtered),
+        file_name=f"{fname_base}.json",
+        mime="application/json",
     )
 
     # ── 하이라이트 테이블 ──────────────────────────────────────
-    st.markdown(_render_table(filtered, keywords_used), unsafe_allow_html=True)
+    st.markdown(_render_table(filtered, keywords_used, sent_map), unsafe_allow_html=True)
 
     # ── 트렌드 차트 ───────────────────────────────────────────
     with st.expander("📈 날짜별 기사 수 트렌드", expanded=False):

@@ -1,4 +1,6 @@
-from io import BytesIO
+import csv
+import json
+from io import BytesIO, StringIO
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
@@ -55,3 +57,36 @@ def to_excel(articles: list[Article]) -> bytes:
     buf = BytesIO()
     wb.save(buf)
     return buf.getvalue()
+
+
+_CSV_HEADERS = ["순번", "배포일자", "언론사", "제목", "URL", "감성", "출처"]
+
+
+def to_csv(articles: list[Article]) -> bytes:
+    """UTF-8 BOM CSV — Excel에서 한글 깨짐 없이 열림."""
+    buf = StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(_CSV_HEADERS)
+    for idx, art in enumerate(articles, 1):
+        date_str = art.pub_date.strftime("%Y-%m-%d %H:%M") if art.pub_date else ""
+        writer.writerow([
+            idx, date_str, art.press, art.title,
+            art.url, classify(art.title), art.source,
+        ])
+    return buf.getvalue().encode("utf-8-sig")
+
+
+def to_json(articles: list[Article]) -> bytes:
+    data = [
+        {
+            "순번": idx,
+            "배포일자": art.pub_date.isoformat() if art.pub_date else None,
+            "언론사": art.press,
+            "제목": art.title,
+            "url": art.url,
+            "감성": classify(art.title),
+            "출처": art.source,
+        }
+        for idx, art in enumerate(articles, 1)
+    ]
+    return json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")

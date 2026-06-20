@@ -1,8 +1,12 @@
-"""제목 기반 간단 감성 분류 (긍정 / 부정 / 중립).
+"""감성 분류 — KR-FinBert-SC (transformers) 우선, 미설치 시 키워드 사전 폴백.
 
-키워드 사전 방식이라 100% 정확하지 않다. 제목에 긍정/부정 단어가
-동시에 등장하면 더 많은 쪽을 따르며, 동수면 중립으로 처리한다.
+첫 실행 시 snunlp/KR-FinBert-SC 모델(~440MB)을 HuggingFace 캐시에 다운로드한다.
+이후 실행부터는 캐시에서 즉시 로드.
 """
+
+from __future__ import annotations
+
+from functools import lru_cache
 
 _POSITIVE = {
     "상승", "급등", "호재", "성장", "개선", "확대", "돌파", "신고가", "흑자",
@@ -17,13 +21,17 @@ _NEGATIVE = {
     "우려", "폭락", "약세", "부진", "손실", "손해", "적자전환", "하향", "약화",
     "실패", "리스크", "경고", "제재", "규제강화", "벌금", "소송", "파산",
     "도산", "해고", "구조조정", "사기", "횡령", "비리", "논란", "갈등",
-    "충돌", "피해", "사고", "폐업", "중단", "취소", "폭등우려", "버블",
+    "충돌", "피해", "사고", "폐업", "중단", "취소", "버블",
     "침체", "불황", "둔화", "부담", "악화", "저하", "부정적",
 }
 
+_LABEL_MAP = {
+    "긍정": "긍정", "부정": "부정", "중립": "중립",
+    "LABEL_0": "부정", "LABEL_1": "중립", "LABEL_2": "긍정",
+}
 
-def classify(title: str) -> str:
-    """기사 제목을 분석해 '긍정' / '부정' / '중립' 중 하나를 반환한다."""
+
+def _keyword_classify(title: str) -> str:
     pos = sum(1 for w in _POSITIVE if w in title)
     neg = sum(1 for w in _NEGATIVE if w in title)
     if pos > neg:
@@ -31,3 +39,27 @@ def classify(title: str) -> str:
     if neg > pos:
         return "부정"
     return "중립"
+
+
+try:
+    from transformers import pipeline as _hf_pipeline  # type: ignore[import]
+
+    @lru_cache(maxsize=1)
+    def _load_pipeline():
+        return _hf_pipeline(
+            "text-classification",
+            model="snunlp/KR-FinBert-SC",
+            truncation=True,
+            max_length=128,
+            device=-1,  # CPU
+        )
+
+    def classify(title: str) -> str:
+        try:
+            label = _load_pipeline()(title)[0]["label"]
+            return _LABEL_MAP.get(label, "중립")
+        except Exception:
+            return _keyword_classify(title)
+
+except ImportError:
+    classify = _keyword_classify  # type: ignore[assignment]
