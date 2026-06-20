@@ -46,23 +46,21 @@ _SENTIMENT_STYLE = {
 
 def _render_table(articles, keywords: list[str]) -> str:
     rows = []
-    for a in articles:
+    for idx, a in enumerate(articles, start=1):
         date_str = a.pub_date.strftime("%Y-%m-%d %H:%M") if a.pub_date else ""
         link = (
             f'<a href="{html.escape(a.url)}" target="_blank">기사보기</a>'
             if a.url
             else ""
         )
-        sentiment = classify(a.title)
-        style = _SENTIMENT_STYLE.get(sentiment, "")
         rows.append(
             f"<tr>"
-            f"<td>{_highlight(a.title, keywords)}</td>"
-            f"<td>{html.escape(a.press)}</td>"
+            f"<td style='text-align:center;color:#888'>{idx}</td>"
             f"<td style='white-space:nowrap'>{date_str}</td>"
-            f"<td>{html.escape(a.source)}</td>"
-            f"<td><span style='{style}'>{sentiment}</span></td>"
+            f"<td>{html.escape(a.press)}</td>"
+            f"<td>{_highlight(a.title, keywords)}</td>"
             f"<td>{link}</td>"
+            f"<td>{html.escape(a.source)}</td>"
             f"</tr>"
         )
 
@@ -79,7 +77,7 @@ def _render_table(articles, keywords: list[str]) -> str:
 </style>
 <table class="news-table">
 <thead><tr>
-  <th>제목</th><th>언론사</th><th>배포일자</th><th>출처</th><th>감성</th><th>링크</th>
+  <th>#</th><th>배포일자</th><th>언론사</th><th>제목</th><th>링크</th><th>출처</th>
 </tr></thead>
 <tbody>{"".join(rows)}</tbody>
 </table>"""
@@ -193,6 +191,7 @@ if articles:
         )
         if not date_series.empty:
             chart_df = date_series.value_counts().rename_axis("날짜").sort_index().reset_index()
+            chart_df.columns = ["날짜", "기사 수"]
             chart_df["날짜"] = chart_df["날짜"].astype(str)
             st.bar_chart(chart_df, x="날짜", y="기사 수", use_container_width=True)
 
