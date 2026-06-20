@@ -60,9 +60,9 @@ def _render_table(articles, keywords: list[str]) -> str:
             f"<td style='text-align:center;color:#888'>{idx}</td>"
             f"<td style='white-space:nowrap'>{date_str}</td>"
             f"<td>{html.escape(a.press)}</td>"
-            f"<td>{_highlight(a.title, keywords)}</td>"
-            f"<td>{link}</td>"
-            f"<td><span style='{style}'>{sentiment}</span></td>"
+            f"<td style='word-break:keep-all'>{_highlight(a.title, keywords)}</td>"
+            f"<td style='white-space:nowrap'>{link}</td>"
+            f"<td style='white-space:nowrap'><span style='{style}'>{sentiment}</span></td>"
             f"<td>{html.escape(a.source)}</td>"
             f"</tr>"
         )
@@ -208,9 +208,6 @@ if articles:
     if selected_press:
         st.caption(f"필터 적용 후 {len(filtered)}건 표시")
 
-    # ── 하이라이트 테이블 ──────────────────────────────────────
-    st.markdown(_render_table(filtered, keywords_used), unsafe_allow_html=True)
-
     # ── 엑셀 다운로드 (필터 적용된 결과) ──────────────────────
     fname_kw = "_".join(keywords_used)
     st.download_button(
@@ -219,6 +216,9 @@ if articles:
         file_name=f"news_{fname_kw}_{start_d}_{end_d}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
+    # ── 하이라이트 테이블 ──────────────────────────────────────
+    st.markdown(_render_table(filtered, keywords_used), unsafe_allow_html=True)
 
     # ── 트렌드 차트 ───────────────────────────────────────────
     with st.expander("📈 날짜별 기사 수 트렌드", expanded=False):

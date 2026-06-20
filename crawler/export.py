@@ -9,7 +9,7 @@ from crawler.models import Article
 from crawler.sentiment import classify
 
 _HEADERS = ["순번", "배포일자", "언론사", "제목", "링크", "감성", "출처"]
-_WIDTHS = [6, 18, 16, 60, 14, 8, 14]
+_WIDTHS = [6, 18, 16, 60, 12, 10, 14]
 _LINK_FONT = Font(color="0563C1", underline="single")
 
 _FILL = {
