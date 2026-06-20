@@ -18,9 +18,9 @@ def test_link_cell_has_hyperlink_and_tooltip():
     wb = load_workbook(BytesIO(to_excel([art])))
     ws = wb.active
 
-    # 컬럼 순서: 제목(1) 언론사(2) 배포일자(3) 출처(4) 감성(5) 링크(6)
-    link_cell = ws.cell(row=2, column=6)
-    assert link_cell.value == "기사보기"  # 셀에는 실제 URL 미노출
+    # 컬럼 순서: 순번(1) 배포일시(2) 제목(3) 링크(4) 감성(5) 출처(6)
+    link_cell = ws.cell(row=2, column=4)
+    assert link_cell.value == "기사보기"
     assert link_cell.hyperlink.target == "https://example.com/news/1"
     assert link_cell.hyperlink.tooltip == "https://example.com/news/1"
 
@@ -28,7 +28,7 @@ def test_link_cell_has_hyperlink_and_tooltip():
 def test_headers():
     wb = load_workbook(BytesIO(to_excel([])))
     ws = wb.active
-    assert [c.value for c in ws[1]] == ["제목", "언론사", "배포일자", "출처", "감성", "링크"]
+    assert [c.value for c in ws[1]] == ["순번", "배포일시", "제목", "링크", "감성", "출처"]
 
 
 def test_sentiment_column_filled():

@@ -53,13 +53,15 @@ def _render_table(articles, keywords: list[str]) -> str:
             if a.url
             else ""
         )
+        sentiment = classify(a.title)
+        style = _SENTIMENT_STYLE.get(sentiment, "")
         rows.append(
             f"<tr>"
             f"<td style='text-align:center;color:#888'>{idx}</td>"
             f"<td style='white-space:nowrap'>{date_str}</td>"
-            f"<td>{html.escape(a.press)}</td>"
             f"<td>{_highlight(a.title, keywords)}</td>"
             f"<td>{link}</td>"
+            f"<td><span style='{style}'>{sentiment}</span></td>"
             f"<td>{html.escape(a.source)}</td>"
             f"</tr>"
         )
@@ -77,7 +79,7 @@ def _render_table(articles, keywords: list[str]) -> str:
 </style>
 <table class="news-table">
 <thead><tr>
-  <th>#</th><th>배포일자</th><th>언론사</th><th>제목</th><th>링크</th><th>출처</th>
+  <th>#</th><th>배포일시</th><th>제목</th><th>링크</th><th>감성</th><th>출처</th>
 </tr></thead>
 <tbody>{"".join(rows)}</tbody>
 </table>"""
@@ -183,18 +185,6 @@ keywords_used = st.session_state.get("keywords_used", [])
 if articles:
     st.success(f"총 {len(articles)}건 (중복 제거 후)")
 
-    # ── 트렌드 차트 ───────────────────────────────────────────
-    with st.expander("📈 날짜별 기사 수 트렌드", expanded=True):
-        date_series = pd.Series(
-            [a.pub_date.date() for a in articles if a.pub_date],
-            name="기사 수",
-        )
-        if not date_series.empty:
-            chart_df = date_series.value_counts().rename_axis("날짜").sort_index().reset_index()
-            chart_df.columns = ["날짜", "기사 수"]
-            chart_df["날짜"] = chart_df["날짜"].astype(str)
-            st.bar_chart(chart_df, x="날짜", y="기사 수", use_container_width=True)
-
     # ── 감성 요약 ──────────────────────────────────────────────
     sentiments = [classify(a.title) for a in articles]
     pos_n = sentiments.count("긍정")
@@ -228,3 +218,15 @@ if articles:
         file_name=f"news_{fname_kw}_{start_d}_{end_d}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
+    # ── 트렌드 차트 ───────────────────────────────────────────
+    with st.expander("📈 날짜별 기사 수 트렌드", expanded=False):
+        date_series = pd.Series(
+            [a.pub_date.date() for a in articles if a.pub_date],
+            name="기사 수",
+        )
+        if not date_series.empty:
+            chart_df = date_series.value_counts().rename_axis("날짜").sort_index().reset_index()
+            chart_df.columns = ["날짜", "기사 수"]
+            chart_df["날짜"] = chart_df["날짜"].astype(str)
+            st.bar_chart(chart_df, x="날짜", y="기사 수", use_container_width=True)
