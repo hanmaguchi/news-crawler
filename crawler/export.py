@@ -8,8 +8,8 @@ from openpyxl.worksheet.hyperlink import Hyperlink
 from crawler.models import Article
 from crawler.sentiment import classify
 
-_HEADERS = ["순번", "배포일시", "제목", "링크", "감성", "출처"]
-_WIDTHS = [6, 18, 60, 14, 8, 14]
+_HEADERS = ["순번", "배포일자", "언론사", "제목", "링크", "감성", "출처"]
+_WIDTHS = [6, 18, 16, 60, 14, 8, 14]
 _LINK_FONT = Font(color="0563C1", underline="single")
 
 _FILL = {
@@ -30,17 +30,17 @@ def to_excel(articles: list[Article]) -> bytes:
 
     for idx, art in enumerate(articles, start=1):
         sentiment = classify(art.title)
-        ws.append([idx, art.pub_date, art.title, "기사보기", sentiment, art.source])
+        ws.append([idx, art.pub_date, art.press, art.title, "기사보기", sentiment, art.source])
         row = ws.max_row
 
         ws.cell(row=row, column=2).number_format = "yyyy-mm-dd hh:mm"
 
-        sent_cell = ws.cell(row=row, column=5)
+        sent_cell = ws.cell(row=row, column=6)
         fill = _FILL.get(sentiment)
         if fill:
             sent_cell.fill = fill
 
-        link_cell = ws.cell(row=row, column=4)
+        link_cell = ws.cell(row=row, column=5)
         if art.url:
             link_cell.hyperlink = Hyperlink(
                 ref=link_cell.coordinate, target=art.url, tooltip=art.url

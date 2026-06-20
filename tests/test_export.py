@@ -18,8 +18,8 @@ def test_link_cell_has_hyperlink_and_tooltip():
     wb = load_workbook(BytesIO(to_excel([art])))
     ws = wb.active
 
-    # 컬럼 순서: 순번(1) 배포일시(2) 제목(3) 링크(4) 감성(5) 출처(6)
-    link_cell = ws.cell(row=2, column=4)
+    # 컬럼 순서: 순번(1) 배포일자(2) 언론사(3) 제목(4) 링크(5) 감성(6) 출처(7)
+    link_cell = ws.cell(row=2, column=5)
     assert link_cell.value == "기사보기"
     assert link_cell.hyperlink.target == "https://example.com/news/1"
     assert link_cell.hyperlink.tooltip == "https://example.com/news/1"
@@ -28,7 +28,7 @@ def test_link_cell_has_hyperlink_and_tooltip():
 def test_headers():
     wb = load_workbook(BytesIO(to_excel([])))
     ws = wb.active
-    assert [c.value for c in ws[1]] == ["순번", "배포일시", "제목", "링크", "감성", "출처"]
+    assert [c.value for c in ws[1]] == ["순번", "배포일자", "언론사", "제목", "링크", "감성", "출처"]
 
 
 def test_sentiment_column_filled():
@@ -41,6 +41,6 @@ def test_sentiment_column_filled():
     )
     wb = load_workbook(BytesIO(to_excel([art])))
     ws = wb.active
-    sentiment = ws.cell(row=2, column=5).value
+    sentiment = ws.cell(row=2, column=6).value
     assert sentiment in ("긍정", "부정", "중립")
     assert sentiment == "긍정"  # 급등·신고가·달성 → 긍정

@@ -59,6 +59,7 @@ def _render_table(articles, keywords: list[str]) -> str:
             f"<tr>"
             f"<td style='text-align:center;color:#888'>{idx}</td>"
             f"<td style='white-space:nowrap'>{date_str}</td>"
+            f"<td>{html.escape(a.press)}</td>"
             f"<td>{_highlight(a.title, keywords)}</td>"
             f"<td>{link}</td>"
             f"<td><span style='{style}'>{sentiment}</span></td>"
@@ -79,7 +80,7 @@ def _render_table(articles, keywords: list[str]) -> str:
 </style>
 <table class="news-table">
 <thead><tr>
-  <th>#</th><th>배포일시</th><th>제목</th><th>링크</th><th>감성</th><th>출처</th>
+  <th>#</th><th>배포일자</th><th>언론사</th><th>제목</th><th>링크</th><th>감성</th><th>출처</th>
 </tr></thead>
 <tbody>{"".join(rows)}</tbody>
 </table>"""
