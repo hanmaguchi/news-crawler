@@ -55,11 +55,19 @@ try:
         )
 
     def classify(title: str) -> str:
+        return classify_many([title])[0]
+
+    def classify_many(titles: list[str]) -> list[str]:
+        if not titles:
+            return []
         try:
-            label = _load_pipeline()(title)[0]["label"]
-            return _LABEL_MAP.get(label, "중립")
+            results = _load_pipeline()(titles, batch_size=8)
+            return [_LABEL_MAP.get(r["label"], "중립") for r in results]
         except Exception:
-            return _keyword_classify(title)
+            return [_keyword_classify(t) for t in titles]
 
 except ImportError:
     classify = _keyword_classify  # type: ignore[assignment]
+
+    def classify_many(titles: list[str]) -> list[str]:  # type: ignore[misc]
+        return [_keyword_classify(t) for t in titles]

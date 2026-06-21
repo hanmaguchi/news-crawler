@@ -15,7 +15,7 @@ from crawler.favorites import (
     save_kw_favorites,
     save_rss_favorites,
 )
-from crawler.sentiment import classify
+from crawler.sentiment import classify_many
 from crawler.sources import GoogleNewsSource, NaverNewsSource, RssSource
 
 load_dotenv()
@@ -347,9 +347,15 @@ if hidden:
     msg += f" — 블랙리스트 {hidden}건 제외"
 st.success(msg)
 
-# 감성 1회 계산 (테이블·요약 공유)
-with st.spinner("감성 분석 중…"):
-    sent_map: dict[str, str] = {a.url: classify(a.title) for a in articles}
+# 감성 1회 계산 (테이블·요약·내보내기 공유) — 결과셋 단위로 캐시해 rerun마다 재계산 방지
+@st.cache_data(show_spinner="감성 분석 중…")
+def _sentiment_map(items: tuple[tuple[str, str], ...]) -> dict[str, str]:
+    urls = [u for u, _ in items]
+    labels = classify_many([t for _, t in items])
+    return dict(zip(urls, labels))
+
+
+sent_map = _sentiment_map(tuple((a.url, a.title) for a in articles))
 
 # ── 감성 요약 ──────────────────────────────────────────────────────────────────
 vals = list(sent_map.values())
@@ -387,22 +393,23 @@ if result_search:
 # ── 내보내기 버튼 ──────────────────────────────────────────────────────────────
 fname_kw = "_".join(keywords_used)
 fname_base = f"news_{fname_kw}_{start_d}_{end_d}"
+export_sents = [sent_map[a.url] for a in filtered]
 dl1, dl2, dl3 = st.columns(3)
 dl1.download_button(
     "📥 엑셀 다운로드",
-    data=to_excel(filtered),
+    data=to_excel(filtered, export_sents),
     file_name=f"{fname_base}.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 )
 dl2.download_button(
     "📄 CSV 다운로드",
-    data=to_csv(filtered),
+    data=to_csv(filtered, export_sents),
     file_name=f"{fname_base}.csv",
     mime="text/csv",
 )
 dl3.download_button(
     "📋 JSON 다운로드",
-    data=to_json(filtered),
+    data=to_json(filtered, export_sents),
     file_name=f"{fname_base}.json",
     mime="application/json",
 )

@@ -21,7 +21,10 @@ _FILL = {
 }
 
 
-def to_excel(articles: list[Article]) -> bytes:
+def to_excel(articles: list[Article], sentiments: list[str] | None = None) -> bytes:
+    if sentiments is None:
+        sentiments = [classify(a.title) for a in articles]
+
     wb = Workbook()
     ws = wb.active
     ws.title = "뉴스"
@@ -30,8 +33,7 @@ def to_excel(articles: list[Article]) -> bytes:
     for cell in ws[1]:
         cell.font = Font(bold=True)
 
-    for idx, art in enumerate(articles, start=1):
-        sentiment = classify(art.title)
+    for idx, (art, sentiment) in enumerate(zip(articles, sentiments), start=1):
         ws.append([idx, art.pub_date, art.press, art.title, "기사보기", sentiment, art.source])
         row = ws.max_row
 
@@ -62,21 +64,25 @@ def to_excel(articles: list[Article]) -> bytes:
 _CSV_HEADERS = ["순번", "배포일자", "언론사", "제목", "URL", "감성", "출처"]
 
 
-def to_csv(articles: list[Article]) -> bytes:
+def to_csv(articles: list[Article], sentiments: list[str] | None = None) -> bytes:
     """UTF-8 BOM CSV — Excel에서 한글 깨짐 없이 열림."""
+    if sentiments is None:
+        sentiments = [classify(a.title) for a in articles]
     buf = StringIO()
     writer = csv.writer(buf)
     writer.writerow(_CSV_HEADERS)
-    for idx, art in enumerate(articles, 1):
+    for idx, (art, sentiment) in enumerate(zip(articles, sentiments), 1):
         date_str = art.pub_date.strftime("%Y-%m-%d %H:%M") if art.pub_date else ""
         writer.writerow([
             idx, date_str, art.press, art.title,
-            art.url, classify(art.title), art.source,
+            art.url, sentiment, art.source,
         ])
     return buf.getvalue().encode("utf-8-sig")
 
 
-def to_json(articles: list[Article]) -> bytes:
+def to_json(articles: list[Article], sentiments: list[str] | None = None) -> bytes:
+    if sentiments is None:
+        sentiments = [classify(a.title) for a in articles]
     data = [
         {
             "순번": idx,
@@ -84,9 +90,9 @@ def to_json(articles: list[Article]) -> bytes:
             "언론사": art.press,
             "제목": art.title,
             "url": art.url,
-            "감성": classify(art.title),
+            "감성": sentiment,
             "출처": art.source,
         }
-        for idx, art in enumerate(articles, 1)
+        for idx, (art, sentiment) in enumerate(zip(articles, sentiments), 1)
     ]
     return json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
