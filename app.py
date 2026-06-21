@@ -15,7 +15,7 @@ from crawler.favorites import (
     save_kw_favorites,
     save_rss_favorites,
 )
-from crawler.sentiment import classify_many
+from crawler.sentiment import AI_AVAILABLE, classify_many
 from crawler.sources import GoogleNewsSource, NaverNewsSource, RssSource
 
 load_dotenv()
@@ -139,11 +139,14 @@ if history:
         format_func=lambda x: "— 선택하면 검색어에 자동 입력 —" if x == "" else x,
     )
 
-keyword_raw = st.text_input(
+kw_col, btn_col = st.columns([5, 1])
+keyword_raw = kw_col.text_input(
     "검색어 (쉼표로 여러 키워드 동시 수집 가능)",
     key="keyword_input",
     placeholder="예: 인공지능   또는   삼성전자, 이재용, 갤럭시",
 )
+btn_col.write("")  # 라벨 높이만큼 띄워 버튼을 입력칸과 세로 정렬
+do_search = btn_col.button("🔍 검색", type="primary", use_container_width=True)
 keywords = [k.strip() for k in keyword_raw.split(",") if k.strip()]
 
 # ── 키워드 즐겨찾기 ────────────────────────────────────────────────────────────
@@ -291,7 +294,7 @@ with st.expander("🚫 언론사 블랙리스트"):
         st.caption("블랙리스트가 비어 있습니다.")
 
 # ── 검색 실행 ──────────────────────────────────────────────────────────────────
-if st.button("🔍 검색", type="primary"):
+if do_search:
     if not keywords:
         st.warning("검색어를 입력하세요.")
         st.stop()
@@ -347,15 +350,24 @@ if hidden:
     msg += f" — 블랙리스트 {hidden}건 제외"
 st.success(msg)
 
-# 감성 1회 계산 (테이블·요약·내보내기 공유) — 결과셋 단위로 캐시해 rerun마다 재계산 방지
+# AI 감성분석 토글 — 기본은 키워드(즉시), 켜면 KR-FinBert(정확·느림)
+use_ai = st.checkbox(
+    "🤖 AI 감성분석 (KR-FinBert · 정확하지만 느림 — 끄면 키워드 기반으로 즉시)",
+    value=False,
+    disabled=not AI_AVAILABLE,
+    help=None if AI_AVAILABLE else "transformers 미설치 — 키워드 기반만 사용 가능",
+)
+
+
+# 감성 1회 계산 (테이블·요약·내보내기 공유) — 결과셋·모드 단위로 캐시해 rerun마다 재계산 방지
 @st.cache_data(show_spinner="감성 분석 중…")
-def _sentiment_map(items: tuple[tuple[str, str], ...]) -> dict[str, str]:
+def _sentiment_map(items: tuple[tuple[str, str], ...], use_ai: bool) -> dict[str, str]:
     urls = [u for u, _ in items]
-    labels = classify_many([t for _, t in items])
+    labels = classify_many([t for _, t in items], use_ai)
     return dict(zip(urls, labels))
 
 
-sent_map = _sentiment_map(tuple((a.url, a.title) for a in articles))
+sent_map = _sentiment_map(tuple((a.url, a.title) for a in articles), use_ai)
 
 # ── 감성 요약 ──────────────────────────────────────────────────────────────────
 vals = list(sent_map.values())

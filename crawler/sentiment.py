@@ -1,7 +1,8 @@
-"""감성 분류 — KR-FinBert-SC (transformers) 우선, 미설치 시 키워드 사전 폴백.
+"""감성 분류 — 기본은 키워드 사전(빠름), use_ai=True면 KR-FinBert-SC(정확·느림).
 
-첫 실행 시 snunlp/KR-FinBert-SC 모델(~440MB)을 HuggingFace 캐시에 다운로드한다.
-이후 실행부터는 캐시에서 즉시 로드.
+AI 모드 첫 실행 시 snunlp/KR-FinBert-SC 모델(~440MB)을 HuggingFace 캐시에
+다운로드한다. 이후 실행부터는 캐시에서 즉시 로드. transformers 미설치 시
+AI_AVAILABLE=False가 되고 AI 모드도 키워드로 폴백한다.
 """
 
 from __future__ import annotations
@@ -42,8 +43,14 @@ def _keyword_classify(title: str) -> str:
     return "중립"
 
 
+def keyword_classify_many(titles: list[str]) -> list[str]:
+    return [_keyword_classify(t) for t in titles]
+
+
 try:
     from transformers import pipeline as _hf_pipeline  # type: ignore[import]
+
+    AI_AVAILABLE = True
 
     @lru_cache(maxsize=1)
     def _load_pipeline():
@@ -55,20 +62,27 @@ try:
             device=-1,  # CPU
         )
 
-    def classify(title: str) -> str:
-        return classify_many([title])[0]
-
-    def classify_many(titles: list[str]) -> list[str]:
+    def _ai_classify_many(titles: list[str]) -> list[str]:
         if not titles:
             return []
         try:
             results = _load_pipeline()(titles, batch_size=8)
             return [_LABEL_MAP.get(r["label"], "중립") for r in results]
         except Exception:
-            return [_keyword_classify(t) for t in titles]
+            return keyword_classify_many(titles)
 
 except ImportError:
-    classify = _keyword_classify  # type: ignore[assignment]
+    AI_AVAILABLE = False
 
-    def classify_many(titles: list[str]) -> list[str]:  # type: ignore[misc]
-        return [_keyword_classify(t) for t in titles]
+    def _ai_classify_many(titles: list[str]) -> list[str]:
+        return keyword_classify_many(titles)
+
+
+def classify_many(titles: list[str], use_ai: bool = False) -> list[str]:
+    if use_ai:
+        return _ai_classify_many(titles)
+    return keyword_classify_many(titles)
+
+
+def classify(title: str, use_ai: bool = False) -> str:
+    return classify_many([title], use_ai)[0]
