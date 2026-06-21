@@ -31,6 +31,7 @@ _DEFAULTS: dict = {
     "press_blacklist": set(),
     "articles": [],
     "keywords_used": [],
+    "use_ai_used": False,
 }
 for _k, _v in _DEFAULTS.items():
     if _k not in st.session_state:
@@ -150,10 +151,11 @@ keywords = [k.strip() for k in keyword_raw.split(",") if k.strip()]
 
 # AI 감성분석 토글 — 기본은 키워드(즉시), 켜면 KR-FinBert(정확·느림)
 use_ai = st.checkbox(
-    "🤖 AI 감성분석 (KR-FinBert · 정확하지만 느림 — 끄면 키워드 기반으로 즉시)",
+    "🤖 AI 감성분석 (KR-FinBert · 정확하지만 느림 · 검색 버튼 누를 때 적용)",
     value=False,
     disabled=not AI_AVAILABLE,
-    help=None if AI_AVAILABLE else "transformers 미설치 — 키워드 기반만 사용 가능",
+    help="끄면 키워드 기반(빠름). 체크/해제는 다음 검색부터 반영됩니다."
+    if AI_AVAILABLE else "transformers 미설치 — 키워드 기반만 사용 가능",
 )
 
 # ── 키워드 즐겨찾기 ────────────────────────────────────────────────────────────
@@ -338,6 +340,7 @@ if do_search:
         dedup(collected), key=lambda a: a.pub_date or _EPOCH, reverse=True
     )
     st.session_state.keywords_used = keywords
+    st.session_state.use_ai_used = use_ai  # AI 모드는 검색 시점에 확정
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 결과 표시
@@ -365,7 +368,9 @@ def _sentiment_map(items: tuple[tuple[str, str], ...], use_ai: bool) -> dict[str
     return dict(zip(urls, labels))
 
 
-sent_map = _sentiment_map(tuple((a.url, a.title) for a in articles), use_ai)
+sent_map = _sentiment_map(
+    tuple((a.url, a.title) for a in articles), st.session_state.use_ai_used
+)
 
 # ── 감성 요약 ──────────────────────────────────────────────────────────────────
 vals = list(sent_map.values())
