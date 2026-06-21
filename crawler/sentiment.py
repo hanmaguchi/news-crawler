@@ -27,6 +27,7 @@ _NEGATIVE = {
 
 _LABEL_MAP = {
     "긍정": "긍정", "부정": "부정", "중립": "중립",
+    "positive": "긍정", "negative": "부정", "neutral": "중립",
     "LABEL_0": "부정", "LABEL_1": "중립", "LABEL_2": "긍정",
 }
 
