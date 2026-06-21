@@ -381,14 +381,19 @@ sc3.metric("중립 ⚪", vals.count("중립"))
 
 # ── 언론사 필터 ────────────────────────────────────────────────────────────────
 all_press = sorted({a.press for a in articles})
-selected_press = st.multiselect(
+pf_col, tf_col = st.columns([4, 1], vertical_alignment="bottom")
+selected_press = pf_col.multiselect(
     "언론사 필터",
     options=all_press,
     default=[],
     placeholder="선택하지 않으면 전체 표시",
 )
+title_only = tf_col.checkbox("제목에 키워드 포함만")
 filtered = [a for a in articles if not selected_press or a.press in selected_press]
-if selected_press:
+if title_only:
+    kws = [k.lower() for k in keywords_used]
+    filtered = [a for a in filtered if any(k in a.title.lower() for k in kws)]
+if selected_press or title_only:
     st.caption(f"필터 적용 후 {len(filtered)}건")
 
 # ── 정렬 + 결과 내 검색 ────────────────────────────────────────────────────────
